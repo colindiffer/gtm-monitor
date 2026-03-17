@@ -1,0 +1,13 @@
+{
+  "googleSheetId": "1ErKmP2DBrH6nn0A3C3rqIKjZ09KYblGoZrQ5rsOxxe8",
+  "containers": [],
+  "checkIntervalHours": 2,
+  "escalateAfterHours": 72,
+  "reescalateEveryHours": 6,
+  "slack": {
+    "webhookEnvVar": "SLACK_WEBHOOK_URL",
+    "channel": "#gtm-alerts",
+    "notifyOnEveryChange": true,
+    "notifyOnEscalation": true
+  }
+}

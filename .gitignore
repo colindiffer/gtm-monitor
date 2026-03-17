@@ -1,0 +1,10 @@
+.env
+node_modules/
+state/last-seen.json
+auth/tokens.json
+
+*.json.backup
+.claude/
+client_secret_*.json
+CUsers*
+state/

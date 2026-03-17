@@ -1,0 +1,125 @@
+GTM CHANGE MONITOR — SETUP GUIDE
+==================================
+
+WHAT IT DOES
+------------
+- Checks all your GTM containers every 2 hours for workspace changes
+- Sends a Slack alert to #gtm_monitor_checks when changes are found
+- Distinguishes between LIVE (published) and NOT YET LIVE (unpublished) changes
+- Shows what specifically changed (tags, triggers, variables, templates)
+- Detects new workspaces, version rollbacks, and post-publish resets
+- Re-alerts every 6 hours if changes haven't been marked as reviewed
+- Escalates after 72 hours of no review (covers weekends)
+- Containers managed via Google Sheet — no code changes needed to add new ones
+
+
+STEP 1 — Google Cloud Project + OAuth Credentials
+--------------------------------------------------
+1. Go to https://console.cloud.google.com
+2. Create a new project called "GTM Monitor"
+3. Enable the "Tag Manager API":
+   - APIs & Services → Library → search "Tag Manager API" → Enable
+4. Create OAuth credentials:
+   - APIs & Services → Credentials → Create Credentials → OAuth client ID
+   - Application type: Web application
+   - Authorised redirect URIs: http://localhost:3000/oauth/callback
+   - Copy the Client ID and Client Secret
+5. Configure OAuth consent screen:
+   - Add your Google account as a Test User (Audience → Test users)
+
+
+STEP 2 — Create your .env file
+-------------------------------
+Copy .env.example to .env and fill in:
+
+  GOOGLE_CLIENT_ID=       (from step 1)
+  GOOGLE_CLIENT_SECRET=   (from step 1)
+  GOOGLE_REDIRECT_URI=http://localhost:3000/oauth/callback
+  SLACK_WEBHOOK_URL=      (see step 3)
+  OPENAI_API_KEY=         (not currently used — reserved for future use)
+
+GOOGLE_REFRESH_TOKEN is filled automatically in step 4.
+
+
+STEP 3 — Create a Slack Incoming Webhook
+-----------------------------------------
+1. Go to https://api.slack.com/apps
+2. Create New App → From Scratch
+3. Name it "GTM Monitor", pick your workspace
+4. Incoming Webhooks → Activate → Add New Webhook to Workspace
+5. Pick channel: #gtm_monitor_checks
+6. Copy the Webhook URL → paste into .env as SLACK_WEBHOOK_URL
+
+
+STEP 4 — Authenticate with Google (one-time)
+----------------------------------------------
+  npm run auth
+
+Opens a browser. Sign in with the Google account that has GTM access.
+The refresh token is automatically saved to your .env file.
+
+Note: If you see a Google verification warning, go to
+Google Cloud Console → APIs & Services → OAuth consent screen →
+Audience → Test users → add your email.
+
+
+STEP 5 — Add containers to Google Sheet
+-----------------------------------------
+Open the Google Sheet (ID in config.json → googleSheetId).
+Add a row per container with these columns:
+
+  A: Name             e.g. "SportsShoes Web"
+  B: Account ID       e.g. "123456789"   (from GTM URL: accounts/XXXXX/)
+  C: Container ID     e.g. "987654321"   (from GTM URL: containers/XXXXX/)
+  D: Public ID        e.g. "GTM-XXXXXX"
+  E: Revenue Critical yes / no
+  F: Active           yes / no  (set "no" to pause monitoring)
+
+Row 1 is the header row — data starts from row 2.
+
+
+STEP 6 — Test it
+-----------------
+  npm run check       <- run a manual check
+
+
+AUTOMATED RUNS
+--------------
+Runs every 2 hours via Windows Task Scheduler ("GTM Monitor Check").
+Runs on startup if any scheduled runs were missed (e.g. machine was off).
+Completely independent of Claude Code.
+
+To manage: open Task Scheduler → find "GTM Monitor Check"
+
+
+MARKING CHANGES AS REVIEWED
+-----------------------------
+Each Slack alert shows a review command at the bottom:
+
+  node review.js <containerId> <workspaceId>
+
+Run this after you've checked the change in GTM. It stops the reminders
+for that workspace until something new changes.
+
+
+FILES
+-----
+state/last-seen.json   Tracks what's been seen and reviewed (gitignored)
+config.json            Settings and Google Sheet ID
+.env                   Secrets — never commit this
+src/check.js           Main check logic
+src/gtm-api.js         GTM API calls
+src/notifier.js        Slack alert formatting
+src/change-detector.js State comparison logic
+src/sheets-config.js   Google Sheets container loader
+src/admin-reports.js   Google Admin SDK (user attribution — requires Workspace admin)
+review.js              Mark a workspace as reviewed
+
+
+OPTIONAL — USER ATTRIBUTION (who made the change)
+--------------------------------------------------
+The system can show which email address made a GTM change in the Slack alert.
+This requires Google Workspace admin access for the Reports API.
+
+To enable: ask your Google Workspace admin to grant your account the
+Reports API viewer role in Google Admin console, then run npm run auth again.
