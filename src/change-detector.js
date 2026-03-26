@@ -3,20 +3,35 @@
 const fs = require('fs');
 const path = require('path');
 
-const STATE_FILE = path.join(__dirname, '..', 'state', 'last-seen.json');
+const DEFAULT_STATE_FILE = path.join(__dirname, '..', 'state', 'last-seen.json');
+
+function getStateFile() {
+  if (process.env.STATE_FILE) {
+    return process.env.STATE_FILE;
+  }
+
+  const stateDir = process.env.STATE_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH;
+  if (stateDir) {
+    return path.join(stateDir, 'last-seen.json');
+  }
+
+  return DEFAULT_STATE_FILE;
+}
 
 function loadState() {
-  if (!fs.existsSync(STATE_FILE)) return {};
+  const stateFile = getStateFile();
+  if (!fs.existsSync(stateFile)) return {};
   try {
-    return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+    return JSON.parse(fs.readFileSync(stateFile, 'utf8'));
   } catch {
     return {};
   }
 }
 
 function saveState(state) {
-  fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
-  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+  const stateFile = getStateFile();
+  fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+  fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
 }
 
 // Returns workspaces that need attention:
@@ -132,6 +147,7 @@ module.exports = {
   getAllContainerStates,
   hoursAgo,
   loadState,
+  getStateFile,
   saveVersionBaseline,
   getVersionBaseline
 };

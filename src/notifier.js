@@ -153,10 +153,6 @@ async function sendNewVersionAlert({ containerName, versions }) {
     return;
   }
 
-  const versionList = versions.map(v =>
-    `• *${v.versionName}* (v${v.versionId})${v.description ? ` — ${v.description}` : ''}`
-  ).join('\n');
-
   const blocks = [
     {
       type: 'header',
@@ -165,12 +161,19 @@ async function sendNewVersionAlert({ containerName, versions }) {
     {
       type: 'section',
       text: { type: 'mrkdwn', text: `A new version has been created. Check GTM to confirm whether it has been published to live or is still a draft:` }
-    },
-    {
-      type: 'section',
-      text: { type: 'mrkdwn', text: versionList }
     }
   ];
+
+  for (const v of versions) {
+    const label = `*${v.versionName}* (v${v.versionId})${v.description ? ` — ${v.description}` : ''}`;
+    const diffText = v.diff && v.diff.length > 0
+      ? formatChangeList(v.diff)
+      : '_No differences detected from previous version_';
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: `${label}\n${diffText}` }
+    });
+  }
 
   await postToSlack(webhookUrl, { blocks });
   console.log(`[Notifier] New version alert sent for ${containerName}`);

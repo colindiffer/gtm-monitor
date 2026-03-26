@@ -62,7 +62,6 @@ async function getRecentGtmActivity(sinceHours = 72) {
     return activityByContainer;
   } catch (err) {
     if (err.code === 403 || err.status === 403) {
-      console.warn('[AdminReports] Access denied — Reports API requires Google Workspace admin access. User emails will not be shown.');
       return null;
     }
     console.warn(`[AdminReports] Could not fetch activity: ${err.message}`);

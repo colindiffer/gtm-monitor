@@ -62,7 +62,7 @@ async function getLatestPublishedVersion(accountId, containerId) {
   // Fetch both versions to diff them
   const getItems = (version) => {
     const map = {};
-    const entityTypes = { tags: 'tag', triggers: 'trigger', variables: 'variable', customTemplates: 'customTemplate' };
+    const entityTypes = { tag: 'tag', trigger: 'trigger', variable: 'variable', customTemplate: 'customTemplate', client: 'client', transformation: 'transformation' };
     for (const [key, type] of Object.entries(entityTypes)) {
       for (const item of (version[key] || [])) {
         map[`${type}::${item.name}`] = { type, name: item.name, fingerprint: item.fingerprint };
@@ -107,16 +107,60 @@ async function getVersionsSince(accountId, containerId, sinceVersionId) {
   const tagmanager = getTagManager();
   const parent = `accounts/${accountId}/containers/${containerId}`;
   const res = await tagmanager.accounts.containers.version_headers.list({ parent });
-  const headers = (res.data.containerVersionHeader || []).filter(v => !v.deleted);
+  const allHeaders = (res.data.containerVersionHeader || []).filter(v => !v.deleted)
+    .sort((a, b) => parseInt(a.containerVersionId) - parseInt(b.containerVersionId));
 
-  return headers
-    .filter(v => parseInt(v.containerVersionId) > sinceVersionId)
-    .map(v => ({
-      versionId: v.containerVersionId,
-      versionName: v.name || `Version ${v.containerVersionId}`,
-      description: v.description || ''
-    }))
-    .sort((a, b) => parseInt(a.versionId) - parseInt(b.versionId));
+  const newHeaders = allHeaders.filter(v => parseInt(v.containerVersionId) > sinceVersionId);
+
+  const getItems = (version) => {
+    const map = {};
+    const entityTypes = { tag: 'tag', trigger: 'trigger', variable: 'variable', customTemplate: 'customTemplate', client: 'client', transformation: 'transformation' };
+    for (const [key, type] of Object.entries(entityTypes)) {
+      for (const item of (version[key] || [])) {
+        map[`${type}::${item.name}`] = { type, name: item.name, fingerprint: item.fingerprint };
+      }
+    }
+    return map;
+  };
+
+  const results = [];
+  // Track the previous version ID as we iterate — starts at sinceVersionId so the
+  // first new version always diffs against the known baseline (fetched directly by ID).
+  let prevVersionId = sinceVersionId;
+
+  for (const header of newHeaders) {
+    const vPath = `accounts/${accountId}/containers/${containerId}/versions/${header.containerVersionId}`;
+    const vRes = await tagmanager.accounts.containers.versions.get({ path: vPath });
+    const latestItems = getItems(vRes.data);
+
+    let diff = [];
+    try {
+      const prevPath = `accounts/${accountId}/containers/${containerId}/versions/${prevVersionId}`;
+      const prevRes = await tagmanager.accounts.containers.versions.get({ path: prevPath });
+      const prevItems = getItems(prevRes.data);
+
+      for (const [key, item] of Object.entries(latestItems)) {
+        if (!prevItems[key]) diff.push({ changeType: 'added', entityType: item.type, name: item.name });
+        else if (prevItems[key].fingerprint !== item.fingerprint) diff.push({ changeType: 'updated', entityType: item.type, name: item.name });
+      }
+      for (const [key, item] of Object.entries(prevItems)) {
+        if (!latestItems[key]) diff.push({ changeType: 'deleted', entityType: item.type, name: item.name });
+      }
+    } catch (e) {
+      console.error(`[DEBUG] Version diff failed for v${header.containerVersionId} vs v${prevVersionId}: ${e.message}`);
+    }
+
+    results.push({
+      versionId: header.containerVersionId,
+      versionName: header.name || `Version ${header.containerVersionId}`,
+      description: header.description || '',
+      diff
+    });
+
+    prevVersionId = parseInt(header.containerVersionId);
+  }
+
+  return results;
 }
 
 async function getLatestVersionId(accountId, containerId) {

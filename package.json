@@ -4,6 +4,7 @@
   "description": "GTM change monitoring with AI analysis and Slack alerts",
   "main": "index.js",
   "scripts": {
+    "start": "node src/check.js",
     "check": "node src/check.js",
     "list": "node review.js --list",
     "auth": "node auth/setup-oauth.js"

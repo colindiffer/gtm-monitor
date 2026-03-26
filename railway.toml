@@ -1,0 +1,7 @@
+[build]
+builder = "RAILPACK"
+
+[deploy]
+startCommand = "npm run check"
+restartPolicyType = "NEVER"
+cronSchedule = "0 */2 * * *"
